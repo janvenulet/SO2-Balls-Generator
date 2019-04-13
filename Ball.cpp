@@ -56,7 +56,7 @@ void Ball::move()
     }
     else if ( this->Y == screenY) //surface friction
     {
-        speedX *= 0.9;
+        speedX *= 0.8;
         if (abs(speedX) < 0.4)
                 speedX = 0.0;
     }
@@ -64,7 +64,7 @@ void Ball::move()
     if (this -> Y  > screenY - 1 ) 
     {
         this -> Y = screenY - 1;
-        speedY *=  0.50;
+        speedY *=  0.55;
         speedY *= -1;
         if (abs(speedY) < 4.70) 
             this->Y = screenY; 
@@ -110,3 +110,6 @@ int Ball::getY()
 
 Ball::~Ball()
 {}
+
+
+

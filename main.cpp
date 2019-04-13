@@ -5,15 +5,20 @@
 #include <stdlib.h>
 #include <thread>
 #include "Ball.h"
+#include <mutex>
 
 using namespace std;
-
+ 
+mutex mtx;
 vector <Ball*> balls;
 vector <thread> ballsThreads;
 int numberOfBalls = 5;
 int timeInterval = 1000; //miliseconds beetwen balls generation
-int windowX, windowY;
+int windowX, windowY, mutexX, mutexY;
 bool runningLoop = true;
+int mutexHeight = 5;
+bool ballWaitingForMutex = false;
+int ballsInMutex=0;
 
 void pressButtonToExit()
 {
@@ -25,12 +30,49 @@ void pressButtonToExit()
 	}
 }
 
+bool ballInMutex(int ball)
+{
+	int ballX = balls[ball]->getX();
+	int ballY = balls[ball]->getY();
+
+	if ( (ballX > mutexX && ballX <= mutexX + 10) && (ballY > mutexY && ballY <= mutexY + mutexHeight)) //10 to ilosc znakow z lancuchu ____
+		return true;
+	else 
+		return false;
+}
+
 void ballThreadFunction(int ball)
 {
 	while(runningLoop)
 	{
 		balls[ball]->move();
-		this_thread::sleep_for(std::chrono::milliseconds(40));
+		if (ballInMutex(ball)) //tu mutex
+		{
+			if (ballsInMutex > 2 ) continue; 
+			ballWaitingForMutex = true;
+			ballsInMutex++;
+			if (mtx.try_lock())
+			{
+				ballWaitingForMutex = false;
+				while (!ballWaitingForMutex)
+				{
+					this_thread::sleep_for(std::chrono::milliseconds(100));
+				} 
+				mtx.unlock();				
+			}
+			else 
+			{
+				mtx.lock();
+				ballWaitingForMutex = false;
+				while (!ballWaitingForMutex)
+				{
+					this_thread::sleep_for(std::chrono::milliseconds(100));
+				} 
+				mtx.unlock();	
+			}
+			ballsInMutex--;				
+		}
+		this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
 }
 
@@ -46,17 +88,33 @@ void generateBalls()
 	}
 }
 
+void drawRectangleMutex()
+{
+	getmaxyx(stdscr, windowY, windowX);	
+	mutexX = windowX/4;
+	mutexY = windowY/2;
+	mvaddstr(mutexY, mutexX, "__________"); //10 "podlog"
+	mvaddstr(mutexY + mutexHeight, mutexX, "__________");
+	for (int i = 1; i <= mutexHeight ; i++) 
+	{
+		mvaddch(mutexY + i, mutexX, '|');
+		mvaddch(mutexY + i, mutexX +10, '|');
+	}
+}
+
 void renderScreen()
 {
 	while (runningLoop)
 	{
 		clear();
+		drawRectangleMutex();
+
 		for (int i = 0; i < balls.size(); i++)
 		{
 			mvprintw(balls[i]->getY(), balls[i]->getX(), "o");	
 		}
 		refresh();
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		std::this_thread::sleep_for(std::chrono::milliseconds(15));
 	}
 }
 
