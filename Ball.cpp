@@ -66,7 +66,9 @@ void Ball::move()
         this -> Y = screenY - 1;
         speedY *=  0.55;
         speedY *= -1;
-        if (abs(speedY) < 4.70) 
+        if (abs(speedY) < 6.00) 
+            speedY *= 0.3; 
+        if (abs(speedY) < 2.0) 
             this->Y = screenY; 
     }
     else 

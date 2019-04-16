@@ -6,17 +6,19 @@
 #include <thread>
 #include "Ball.h"
 #include <mutex>
+#include <condition_variable>
 
 using namespace std;
  
-mutex mtx;
+mutex mtx, mtx2;
+condition_variable cv; 
 vector <Ball*> balls;
 vector <thread> ballsThreads;
-int numberOfBalls = 5;
+int numberOfBalls = 30;
 int timeInterval = 1000; //miliseconds beetwen balls generation
 int windowX, windowY, mutexX, mutexY;
 bool runningLoop = true;
-int mutexHeight = 5;
+int mutexHeight = 8;
 bool ballWaitingForMutex = false;
 int ballsInMutex=0;
 
@@ -28,7 +30,10 @@ void pressButtonToExit()
 		if (key == '\n')
 		runningLoop = false;
 	}
+	//ballWaitingForMutex=false;  tu rozwiazac problem wyjscia
 }
+
+
 
 bool ballInMutex(int ball)
 {
@@ -43,36 +48,53 @@ bool ballInMutex(int ball)
 
 void ballThreadFunction(int ball)
 {
+	bool ballLeavingMutex = false;
 	while(runningLoop)
 	{
 		balls[ball]->move();
-		if (ballInMutex(ball)) //tu mutex
-		{
-			if (ballsInMutex > 2 ) continue; 
-			ballWaitingForMutex = true;
-			ballsInMutex++;
-			if (mtx.try_lock())
+		this_thread::sleep_for(std::chrono::milliseconds(50));
+		if (ballInMutex(ball)) 
+		{ 
+			if (ballLeavingMutex)
+				continue;
+			if (mtx2.try_lock())
 			{
-				ballWaitingForMutex = false;
-				while (!ballWaitingForMutex)
+				if (ballsInMutex > 0) 
+					ballWaitingForMutex = true;
+				ballsInMutex++;
+				while (ballsInMutex == 2)
 				{
-					this_thread::sleep_for(std::chrono::milliseconds(100));
-				} 
-				mtx.unlock();				
+					this_thread::sleep_for(std::chrono::milliseconds(50));
+				}
+				mtx2.unlock();
 			}
 			else 
+				continue;
+			// if (mtx.try_lock())
+			// {
+			// 	ballWaitingForMutex = false;
+			// 	while (!ballWaitingForMutex)
+			// 	{
+			// 		this_thread::sleep_for(std::chrono::milliseconds(100));
+			// 	} 
+			// 	mtx.unlock();				
+			// }
+			// else 
+		
+			mtx.lock();
+			while (!ballWaitingForMutex && runningLoop)
 			{
-				mtx.lock();
-				ballWaitingForMutex = false;
-				while (!ballWaitingForMutex)
-				{
-					this_thread::sleep_for(std::chrono::milliseconds(100));
-				} 
-				mtx.unlock();	
-			}
-			ballsInMutex--;				
+				this_thread::sleep_for(std::chrono::milliseconds(50));
+			} 
+			ballLeavingMutex = true;
+			ballWaitingForMutex = false;
+			ballsInMutex--;
+			mtx.unlock();
+			
+							
 		}
-		this_thread::sleep_for(std::chrono::milliseconds(50));
+		else 
+			ballLeavingMutex = false;
 	}
 }
 
