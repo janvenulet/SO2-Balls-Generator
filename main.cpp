@@ -11,7 +11,7 @@
 using namespace std;
  
 mutex mtx, mtx2;
-condition_variable cv; 
+condition_variable cv, cv2; 
 vector <Ball*> balls;
 vector <thread> ballsThreads;
 int numberOfBalls = 30;
@@ -29,11 +29,16 @@ void pressButtonToExit()
 		char key = getch();
 		if (key == '\n')
 		runningLoop = false;
+		cv2.notify_all();
+		cv.notify_all();
 	}
 	//ballWaitingForMutex=false;  tu rozwiazac problem wyjscia
 }
 
-
+bool shouldBallLeaveThread()
+{
+	return !ballWaitingForMutex && runningLoop;
+}
 
 bool ballInMutex(int ball)
 {
@@ -49,6 +54,7 @@ bool ballInMutex(int ball)
 void ballThreadFunction(int ball)
 {
 	bool ballLeavingMutex = false;
+	int delay = 0;
 	while(runningLoop)
 	{
 		balls[ball]->move();
@@ -57,44 +63,48 @@ void ballThreadFunction(int ball)
 		{ 
 			if (ballLeavingMutex)
 				continue;
-			if (mtx2.try_lock())
+			if (delay<1) //tutaj to opoznienie 
 			{
-				if (ballsInMutex > 0) 
-					ballWaitingForMutex = true;
-				ballsInMutex++;
-				while (ballsInMutex == 2)
-				{
-					this_thread::sleep_for(std::chrono::milliseconds(50));
-				}
-				mtx2.unlock();
-			}
-			else 
+				delay++;
 				continue;
-			// if (mtx.try_lock())
-			// {
-			// 	ballWaitingForMutex = false;
-			// 	while (!ballWaitingForMutex)
-			// 	{
-			// 		this_thread::sleep_for(std::chrono::milliseconds(100));
-			// 	} 
-			// 	mtx.unlock();				
-			// }
-			// else 
-		
-			mtx.lock();
-			while (!ballWaitingForMutex && runningLoop)
+			}
+
+			unique_lock<mutex> lck2(mtx2);
+			
+			if (ballsInMutex > 0) //dla pierwszego watku w prostakacie
+				ballWaitingForMutex = true;
+			ballsInMutex++;
+			if (ballsInMutex == 2)
 			{
-				this_thread::sleep_for(std::chrono::milliseconds(50));
-			} 
+				//balls[ball]->move();
+				//this_thread::sleep_for(std::chrono::milliseconds(50));
+				cv.notify_one();
+			}
+			while (ballsInMutex == 2 && runningLoop) {
+				cv2.wait(lck2);
+			}
+			mtx2.unlock();
+			
+			
+			
+			unique_lock<mutex> lck(mtx);
+			
+			//cv.wait(lck, shouldBallLeaveThread());
+			//unique_lock<mutex> lck(mtx);
+			while(!ballWaitingForMutex && runningLoop)
+			{
+				cv.wait(lck);
+			}
 			ballLeavingMutex = true;
 			ballWaitingForMutex = false;
 			ballsInMutex--;
-			mtx.unlock();
-			
+			cv2.notify_one();
+			lck.unlock();
 							
 		}
 		else 
 			ballLeavingMutex = false;
+			delay = 0; 
 	}
 }
 
