@@ -1,2 +1,2 @@
 # SO2Projekt
-Projekty na Systemy Operacyjne 2 
+SO2_2: Balls Generator using theards/ncurses 
