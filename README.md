@@ -1,2 +1,2 @@
 # SO2Projekt
-SO2_2: Balls Generator using theards/ncurses 
+Balls Generator managing threads using posix/ncurses 
